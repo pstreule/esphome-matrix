@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.waveshare.com)",
+      "WebFetch(domain:esphome.io)",
+      "WebFetch(domain:www.waveshare.com)",
+      "WebSearch",
+      "WebFetch(domain:devices.esphome.io)",
+      "WebFetch(domain:github.com)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}
