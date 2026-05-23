@@ -33,6 +33,45 @@ light:
     id: led_matrix_light
     color_correct: [40%, 40%, 40%]
 
+# Tracks the current horizontal scroll position of the text.
+globals:
+  - id: scroll_x
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+# Font for rendering text.
+font:
+  - file: "MatrixChunky6.ttf"
+    id: matrix_font
+    glyphs: ' !"#$%&''()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~'
+
+# On/off switch exposed to Home Assistant. ALWAYS_ON => on at boot.
+switch:
+  - platform: template
+    name: "Display"
+    id: display_switch
+    optimistic: true
+    restore_mode: ALWAYS_ON
+
+# Free-text input exposed to Home Assistant. Resetting scroll_x on change makes
+# new text start scrolling in from the right edge.
+text:
+  - platform: template
+    name: "Display Text"
+    id: display_text
+    optimistic: true
+    mode: text
+    min_length: 0
+    max_length: 255
+    initial_value: ""
+    restore_value: true
+    on_value:
+      then:
+        - globals.set:
+            id: scroll_x
+            value: '0'
+
 # ─── Display ──────────────────────────────────────────────────────────────────
 # The physical matrix uses a serpentine column layout:
 #   even columns run top→bottom, odd columns run bottom→top.
@@ -46,30 +85,37 @@ display:
     height: 8
     rotation: 180°
     update_interval: 100ms
-    pixel_mapper: |-
-      if (x % 2 == 0) {
-        return (x * 8) + y;
-      }
-      return (x * 8) + (7 - y);
+    auto_clear_enabled: true
+#    pixel_mapper: |-
+#      if (x % 2 == 0) {
+#        return (x * 8) + y;
+#      }
+#      return (x * 8) + (7 - y);
     lambda: |-
-      // 8×8 bitmap: 1 = pixel on, 0 = pixel off
-      // rows top→bottom, columns left→right
-      const bool bitmap[8][8] = {
-        {0, 0, 1, 1, 1, 1, 0, 0},  // row 0
-        {0, 1, 0, 0, 0, 0, 1, 0},  // row 1
-        {1, 0, 1, 0, 0, 1, 0, 1},  // row 2  ← eyes
-        {1, 0, 0, 0, 0, 0, 0, 1},  // row 3
-        {1, 0, 1, 0, 0, 1, 0, 1},  // row 4  ← mouth corners
-        {1, 0, 0, 1, 1, 0, 0, 1},  // row 5  ← mouth middle
-        {0, 1, 0, 0, 0, 0, 1, 0},  // row 6
-        {0, 0, 1, 1, 1, 1, 0, 0},  // row 7
-      };
+      // Switch off → leave the display blank (auto_clear already cleared it).
+      if (!id(display_switch).state) {
+        return;
+      }
 
-      Color on_color  = Color(0xFF4500);  // orange — change to any RGB colour
-      Color off_color = Color(0x000000);  // off
+      // No text set → blank.
+      std::string txt = id(display_text).state;
+      if (txt.empty()) {
+        return;
+      }
 
-      for (int row = 0; row < 8; row++) {
-        for (int col = 0; col < 8; col++) {
-          it.draw_pixel_at(col, row, bitmap[row][col] ? on_color : off_color);
-        }
+      Color text_color = Color(0xFF4500);  // orange — change to any RGB colour
+
+      // Measure the rendered width so we know how far to scroll.
+      int x1, y1, w, h;
+      it.get_text_bounds(0, 0, txt.c_str(), id(matrix_font),
+                         TextAlign::TOP_LEFT, &x1, &y1, &w, &h);
+
+      // Start off the right edge (x = 8) and move left as scroll_x grows.
+      int x = 8 - id(scroll_x);
+      it.print(x, 0, id(matrix_font), text_color, TextAlign::TOP_LEFT, txt.c_str());
+
+      // Advance 1px per render (~100ms); loop once fully scrolled off the left.
+      id(scroll_x) += 1;
+      if (id(scroll_x) > w + 8) {
+        id(scroll_x) = 0;
       }
