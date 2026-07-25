@@ -1,6 +1,6 @@
 esphome:
   name: esp32-s3-matrix
-  friendly_name: "ESP32-S3 LED Matrix"
+  friendly_name: "Coffee Timer"
   platformio_options:
     board_build.flash_mode: dio  # required for ESP32-S3
 
@@ -20,6 +20,11 @@ logger:
 # ––– Expose this device to Home Assistant
 api:
 
+# Wireless firmware updates — needed for `esphome run` over Wi-Fi.
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
 # ─── LED Matrix ───────────────────────────────────────────────────────────────
 # Waveshare ESP32-S3-Matrix: 8×8 WS2812B LEDs on GPIO14, 64 LEDs total.
 # Color brightness capped at 40% to protect the power supply and eyes.
@@ -31,6 +36,7 @@ light:
     num_leds: 64
     name: "LED Matrix"
     id: led_matrix_light
+    internal: true  # hide from Home Assistant — display drives it directly
     color_correct: [40%, 40%, 40%]
 
 # Tracks the current horizontal scroll position of the text.
@@ -47,12 +53,20 @@ font:
     glyphs: ' !"#$%&''()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~'
 
 # On/off switch exposed to Home Assistant. ALWAYS_ON => on at boot.
+# Low-water alert overrides the text with a blinking blue water drop; defaults
+# off so the device starts clean and only trips when HA sets it.
 switch:
   - platform: template
     name: "Display"
     id: display_switch
     optimistic: true
     restore_mode: ALWAYS_ON
+
+  - platform: template
+    name: "Low Water Alert"
+    id: low_water_alert
+    optimistic: true
+    restore_mode: ALWAYS_OFF
 
 # Free-text input exposed to Home Assistant. Resetting scroll_x on change makes
 # new text start scrolling in from the right edge.
@@ -83,7 +97,7 @@ display:
     addressable_light_id: led_matrix_light
     width: 8
     height: 8
-    rotation: 180°
+#    rotation: 180°
     update_interval: 100ms
     auto_clear_enabled: true
 #    pixel_mapper: |-
@@ -94,6 +108,37 @@ display:
     lambda: |-
       // Switch off → leave the display blank (auto_clear already cleared it).
       if (!id(display_switch).state) {
+        return;
+      }
+
+      // Low-water alert overrides the text with a blinking blue water drop.
+      if (id(low_water_alert).state) {
+        // Blink at ~1 Hz: on for 500ms, off for 500ms.
+        if ((millis() / 500) % 2 == 0) {
+          return;
+        }
+
+        // 8×8 water drop: narrow tip at top, rounded body at bottom.
+        // 0 = off, 1 = main blue, 2 = highlight (upper-left "wet" glint).
+        static const uint8_t drop[8][8] = {
+          {0, 0, 0, 1, 1, 0, 0, 0},
+          {0, 0, 0, 1, 1, 0, 0, 0},
+          {0, 0, 1, 1, 1, 1, 0, 0},
+          {0, 0, 1, 2, 1, 1, 0, 0},
+          {0, 1, 2, 1, 1, 1, 1, 0},
+          {1, 1, 1, 1, 1, 1, 1, 1},
+          {1, 1, 1, 1, 1, 1, 1, 1},
+          {0, 1, 1, 1, 1, 1, 1, 0},
+        };
+        Color drop_color      = Color(0x0080FF);
+        Color highlight_color = Color(0xFFFFFF);
+        for (int row = 0; row < 8; row++) {
+          for (int col = 0; col < 8; col++) {
+            uint8_t v = drop[row][col];
+            if (v == 1) it.draw_pixel_at(col, row, drop_color);
+            else if (v == 2) it.draw_pixel_at(col, row, highlight_color);
+          }
+        }
         return;
       }
 
