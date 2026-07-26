@@ -16,6 +16,10 @@ wifi:
 
 logger:
 
+# HA-sourced clock — needed for the elapsed-seconds counter.
+time:
+  - platform: homeassistant
+    id: ha_time
 
 # ––– Expose this device to Home Assistant
 api:
@@ -86,6 +90,23 @@ text:
             id: scroll_x
             value: '0'
 
+  # Unix-timestamp string; empty = timer off. When set, the display shows the
+  # absolute delta from now (past → counting up, future → counting down).
+  - platform: template
+    name: "Timer Start"
+    id: timer_start
+    optimistic: true
+    mode: text
+    min_length: 0
+    max_length: 32
+    initial_value: ""
+    restore_value: true
+    on_value:
+      then:
+        - globals.set:
+            id: scroll_x
+            value: '0'
+
 # ─── Display ──────────────────────────────────────────────────────────────────
 # The physical matrix uses a serpentine column layout:
 #   even columns run top→bottom, odd columns run bottom→top.
@@ -142,8 +163,30 @@ display:
         return;
       }
 
-      // No text set → blank.
-      std::string txt = id(display_text).state;
+      // Determine what to display. Timer takes precedence over the text
+      // input; the two are rendered identically (same colour, same fit/scroll
+      // logic further down).
+      std::string txt;
+
+      const std::string &timer_str = id(timer_start).state;
+      if (!timer_str.empty()) {
+        auto now = id(ha_time).utcnow();
+        if (now.is_valid()) {
+          time_t start_ts = (time_t) strtol(timer_str.c_str(), nullptr, 10);
+          if (start_ts > 0) {
+            long delta = (long)(now.timestamp - start_ts);
+            if (delta < 0) delta = -delta;
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%ld", delta);
+            txt = buf;
+          }
+        }
+      }
+
+      // No timer → fall back to the text input.
+      if (txt.empty()) {
+        txt = id(display_text).state;
+      }
       if (txt.empty()) {
         return;
       }
