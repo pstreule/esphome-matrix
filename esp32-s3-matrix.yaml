@@ -83,7 +83,7 @@ text:
     min_length: 0
     max_length: 255
     initial_value: ""
-    restore_value: true
+    restore_value: false
     on_value:
       then:
         - globals.set:
@@ -100,7 +100,7 @@ text:
     min_length: 0
     max_length: 32
     initial_value: ""
-    restore_value: true
+    restore_value: false
     on_value:
       then:
         - globals.set:
@@ -121,11 +121,6 @@ display:
 #    rotation: 180°
     update_interval: 100ms
     auto_clear_enabled: true
-#    pixel_mapper: |-
-#      if (x % 2 == 0) {
-#        return (x * 8) + y;
-#      }
-#      return (x * 8) + (7 - y);
     lambda: |-
       // Switch off → leave the display blank (auto_clear already cleared it).
       if (!id(display_switch).state) {
