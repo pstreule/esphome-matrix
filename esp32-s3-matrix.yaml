@@ -155,9 +155,17 @@ display:
       it.get_text_bounds(0, 0, txt.c_str(), id(matrix_font),
                          TextAlign::TOP_LEFT, &x1, &y1, &w, &h);
 
-      // Start off the right edge (x = 8) and move left as scroll_x grows.
+      // Fits on the 8px-wide display → draw statically, centered on both axes.
+      if (w <= 8) {
+        id(scroll_x) = 0;
+        it.print(4, 4, id(matrix_font), text_color, TextAlign::CENTER, txt.c_str());
+        return;
+      }
+
+      // Doesn't fit → scroll. Start off the right edge (x = 8) and move left,
+      // vertically centered.
       int x = 8 - id(scroll_x);
-      it.print(x, 0, id(matrix_font), text_color, TextAlign::TOP_LEFT, txt.c_str());
+      it.print(x, 4, id(matrix_font), text_color, TextAlign::CENTER_LEFT, txt.c_str());
 
       // Advance 1px per render (~100ms); loop once fully scrolled off the left.
       id(scroll_x) += 1;

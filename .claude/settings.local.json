@@ -14,7 +14,9 @@
       "Bash(esphome run *)",
       "Bash(ls /dev/cu.* 2>/dev/null | grep -Ei 'usb|serial|slab|acm' || echo \"no obvious USB serial device found\")",
       "Bash(python3 -c \"import secrets; print\\(secrets.token_urlsafe\\(24\\)\\)\")",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "WebFetch(domain:www.artsy.net)",
+      "WebFetch(domain:ocula.com)"
     ]
   }
 }
